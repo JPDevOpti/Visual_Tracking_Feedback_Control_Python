@@ -1,0 +1,14 @@
+{
+    "camera": {
+        "index": 0,
+        "width": 640,
+        "height": 480,
+        "fps": 30
+    },
+    "display": {
+        "window_name": "Hand Tracking - MediaPipe",
+        "show_debug_info": true,
+        "show_landmarks": true,
+        "show_fps": true
+    }
+}

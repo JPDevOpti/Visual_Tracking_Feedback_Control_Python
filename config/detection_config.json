@@ -1,0 +1,21 @@
+{
+    "mediapipe": {
+        "max_hands": 1,
+        "min_detection_confidence": 0.7,
+        "min_tracking_confidence": 0.5,
+        "static_image_mode": false
+    },
+    "tracking": {
+        "palm_landmark_index": 9,
+        "fingertip_indices": [4, 8, 12, 16, 20],
+        "key_landmarks": [0, 5, 9, 13, 17]
+    },
+    "visualization": {
+        "tracking_point_color": [0, 0, 255],
+        "tracking_point_radius": 8,
+        "crosshair_color": [0, 255, 255],
+        "crosshair_size": 15,
+        "text_color": [255, 255, 255],
+        "text_font_scale": 0.6
+    }
+}
