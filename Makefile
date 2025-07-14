@@ -9,13 +9,16 @@ TEST_DIR = tests
 help:
 	@echo "=== Hand Tracking System - Comandos disponibles ==="
 	@echo ""
-	@echo "  make install    - Instalar dependencias"
-	@echo "  make run        - Ejecutar el sistema de tracking"
-	@echo "  make test       - Ejecutar pruebas"
-	@echo "  make diagnose   - Diagnosticar cámara y permisos"
-	@echo "  make clean      - Limpiar archivos temporales"
-	@echo "  make check      - Verificar estructura del proyecto"
-	@echo "  make help       - Mostrar esta ayuda"
+	@echo "  make install       - Instalar dependencias básicas"
+	@echo "  make install-robot - Instalar dependencias para control robótico"
+	@echo "  make run           - Ejecutar el sistema de tracking"
+	@echo "  make run-robot     - Ejecutar control simple de brazo robótico"
+	@echo "  make test          - Ejecutar pruebas"
+	@echo "  make test-robot    - Probar configuración de CoppeliaSim"
+	@echo "  make diagnose      - Diagnosticar cámara y permisos"
+	@echo "  make clean         - Limpiar archivos temporales"
+	@echo "  make check         - Verificar estructura del proyecto"
+	@echo "  make help          - Mostrar esta ayuda"
 	@echo ""
 
 # Instalar dependencias
@@ -28,6 +31,22 @@ install:
 run:
 	@echo "Iniciando sistema de tracking de mano..."
 	cd $(SRC_DIR) && $(PYTHON) main_tracking.py
+
+# Ejecutar control simple de brazo robótico
+run-robot:
+	@echo "Iniciando control simple de brazo robótico..."
+	PYTHONPATH=src $(PYTHON) simple_hand_robot_control.py
+
+# Instalar dependencias para control robótico
+install-robot:
+	@echo "Instalando dependencias para control robótico..."
+	pip3 install pyzmq msgpack coppeliasim-zmqremoteapi-client
+	@echo "Dependencias de robot instaladas"
+
+# Probar configuración de CoppeliaSim
+test-robot:
+	@echo "Probando configuración de CoppeliaSim..."
+	$(PYTHON) test_coppeliasim_setup.py
 
 # Ejecutar pruebas
 test:
