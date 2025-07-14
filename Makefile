@@ -11,7 +11,8 @@ help:
 	@echo ""
 	@echo "  make install       - Instalar dependencias básicas"
 	@echo "  make install-robot - Instalar dependencias para control robótico"
-	@echo "  make run           - Ejecutar el sistema de tracking"
+	@echo "  make run           - Ejecutar el sistema de tracking básico"
+	@echo "  make run-advanced  - Ejecutar sistema avanzado con GUI y análisis"
 	@echo "  make run-robot     - Ejecutar control simple de brazo robótico"
 	@echo "  make test          - Ejecutar pruebas"
 	@echo "  make test-robot    - Probar configuración de CoppeliaSim"
@@ -29,8 +30,13 @@ install:
 
 # Ejecutar el sistema principal
 run:
-	@echo "Iniciando sistema de tracking de mano..."
+	@echo "Iniciando sistema de tracking de mano básico..."
 	cd $(SRC_DIR) && $(PYTHON) main_tracking.py
+
+# Ejecutar sistema avanzado con GUI
+run-advanced:
+	@echo "Iniciando sistema avanzado con interfaz gráfica..."
+	PYTHONPATH=src $(PYTHON) advanced_hand_robot_control.py
 
 # Ejecutar control simple de brazo robótico
 run-robot:
@@ -50,8 +56,13 @@ test-robot:
 
 # Ejecutar pruebas
 test:
-	@echo "Ejecutando pruebas..."
+	@echo "Ejecutando pruebas básicas..."
 	cd $(TEST_DIR) && $(PYTHON) test_tracking.py
+
+# Verificar sistema completo
+test-system:
+	@echo "Verificando sistema avanzado..."
+	$(PYTHON) test_system.py
 
 # Limpiar archivos temporales
 clean:

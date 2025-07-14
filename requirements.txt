@@ -8,3 +8,11 @@ numpy==1.24.3
 pyzmq
 msgpack
 coppeliasim-zmqremoteapi-client
+
+# Interfaz gráfica y visualización
+tkinter
+matplotlib==3.7.2
+scipy==1.11.2
+
+# Análisis y logging
+pandas==2.0.3
