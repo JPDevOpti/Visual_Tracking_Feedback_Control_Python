@@ -10,8 +10,10 @@ import sys
 import os
 import numpy as np
 
-# Agregar el directorio src al path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+# Agregar el directorio src al path para los imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_dir = os.path.join(current_dir, 'src')
+sys.path.insert(0, src_dir)
 
 try:
     from utils.camera_manager import CameraManager
@@ -19,7 +21,9 @@ try:
     from control.coppeliasim_robot_arm import CoppeliaSimRobotArm
 except ImportError as e:
     print(f"❌ Error de importación: {e}")
-    print("💡 Asegúrate de ejecutar desde el directorio raíz del proyecto")
+    print(f"💡 Directorio actual: {current_dir}")
+    print(f"💡 Directorio src: {src_dir}")
+    print("💡 Verifica que los archivos existan en src/")
     sys.exit(1)
 
 

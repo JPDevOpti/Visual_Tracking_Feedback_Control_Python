@@ -1,5 +1,10 @@
+# Dependencias para control de brazo robótico con mano
+# Visión por computadora y tracking
 opencv-python==4.8.1.78
 mediapipe==0.10.7
 numpy==1.24.3
-matplotlib==3.7.2
-scipy==1.11.2
+
+# Comunicación con CoppeliaSim
+pyzmq
+msgpack
+coppeliasim-zmqremoteapi-client
