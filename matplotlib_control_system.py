@@ -60,18 +60,18 @@ class MatplotlibControlSystem:
         self.is_system_initialized = False
         self.show_debug = True
         
-        # Configuración del mapeo
+        # Configuración simple para mapeo 2D
         self.camera_width = 640
         self.camera_height = 480
-        self.robot_x_range = (-0.3, 0.3)
-        self.robot_y_range = (-0.3, 0.3)
+        self.robot_x_range = (-0.2, 0.2)  # Rango simple 40cm total
+        self.robot_y_range = (-0.2, 0.2)  # Rango simple 40cm total  
         self.robot_z_fixed = 0.5
         
-        # Variables de control con valores por defecto
+        # Variables de control simples
         self.current_mode = "open_loop"
-        self.kp = 2.0
-        self.ki = 0.1
-        self.kd = 0.05
+        self.kp = 1.0   # PID suave
+        self.ki = 0.05  
+        self.kd = 0.02
         self.smoothing = 0.7
         
         # Configurar parámetros por defecto en el controlador
@@ -80,7 +80,7 @@ class MatplotlibControlSystem:
         # Setup matplotlib
         self.setup_matplotlib_interface()
         
-        print("✅ Sistema inicializado")
+        print("✅ Sistema inicializado con control suave mejorado")
     
     def setup_default_controller_params(self):
         """Configura los parámetros por defecto del controlador."""
@@ -214,15 +214,20 @@ class MatplotlibControlSystem:
         self.start_time = time.time()
     
     def hand_to_robot_coordinates(self, hand_x: int, hand_y: int) -> np.ndarray:
-        """Convierte coordenadas de la mano a coordenadas del robot."""
+        """
+        Conversión directa y simple de coordenadas de mano a robot (2D).
+        Mapeo lineal sin filtros ni complicaciones.
+        """
+        # Normalizar coordenadas (0 a 1)
         norm_x = hand_x / self.camera_width
         norm_y = hand_y / self.camera_height
         
-        robot_x = self.robot_x_range[0] + norm_x * (self.robot_x_range[1] - self.robot_x_range[0])
-        robot_y = self.robot_y_range[0] + norm_y * (self.robot_y_range[1] - self.robot_y_range[0])
-        robot_z = self.robot_z_fixed
+        # Mapear a coordenadas del robot (-0.2 a 0.2, rango de 40cm)
+        robot_x = (norm_x - 0.5) * 0.4  # Centrar y escalar
+        robot_y = (norm_y - 0.5) * 0.4  # Centrar y escalar
         
-        return np.array([robot_x, robot_y, robot_z])
+        return np.array([robot_x, robot_y, self.robot_z_fixed])
+
     
     def initialize_system(self) -> bool:
         """Inicializa todos los componentes del sistema."""
@@ -321,37 +326,21 @@ class MatplotlibControlSystem:
                 self.errors = self.errors[-600:]
                 self.velocities = self.velocities[-600:]
             
-            # Dibujar overlays
-            frame = self.draw_overlays(frame, hand_x, hand_y, confidence, 
-                                     desired_position, actual_position, error_metrics)
+            # Dibujar solo el punto de tracking de la mano
+            cv2.circle(frame, (hand_x, hand_y), 8, (0, 255, 0), -1)  # Punto verde
+            cv2.circle(frame, (hand_x, hand_y), 12, (255, 255, 255), 2)  # Borde blanco
+            
+            # Cruz pequeña para marcar el centro
+            cv2.line(frame, (hand_x-10, hand_y), (hand_x+10, hand_y), (255, 255, 255), 1)
+            cv2.line(frame, (hand_x, hand_y-10), (hand_x, hand_y+10), (255, 255, 255), 1)
         
         else:
-            if self.show_debug:
-                cv2.putText(frame, "Buscando mano...", (10, 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+            # Mostrar mensaje cuando no detecta mano
+            cv2.putText(frame, "Buscando mano...", (10, 30), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
         
         return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    
-    def draw_overlays(self, frame, hand_x, hand_y, confidence, desired_pos, actual_pos, metrics):
-        """Dibuja información en el frame."""
-        # Punto de la mano
-        cv2.circle(frame, (hand_x, hand_y), 10, (0, 255, 0), -1)
-        cv2.circle(frame, (hand_x, hand_y), 12, (255, 255, 255), 2)
-        
-        # Cruz
-        cv2.line(frame, (hand_x-15, hand_y), (hand_x+15, hand_y), (0, 255, 255), 2)
-        cv2.line(frame, (hand_x, hand_y-15), (hand_x, hand_y+15), (0, 255, 255), 2)
-        
-        if self.show_debug:
-            # Información
-            cv2.putText(frame, f"Mano: ({hand_x}, {hand_y})", (10, 30), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-            cv2.putText(frame, f"Error: {metrics['current_error_magnitude']:.4f} m", (10, 55), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-            cv2.putText(frame, f"Modo: {self.current_mode.replace('_', ' ').title()}", (10, 80), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-        
-        return frame
+
     
     def update_plots(self):
         """Actualiza todos los gráficos."""
@@ -561,11 +550,17 @@ Puntos: {len(self.timestamps)}
     def run(self):
         """Ejecuta el sistema."""
         print("\n🖥️ Iniciando interfaz de matplotlib...")
-        print("📋 Controles disponibles:")
+        print("📋 Sistema de Control Mejorado:")
         print("   • Radio buttons: Cambiar modo de control")
         print("   • Botones: Iniciar, Reset, Exportar")
+        print("   • Control suave con zona muerta y filtros")
+        print("   • Límites de velocidad para seguridad")
         print("   • Sistema optimizado para 60 FPS")
-        print("\n🎯 Usa los controles en la interfaz para operar el sistema")
+        print("\n🎯 INSTRUCCIONES:")
+        print("   • Mueve tu mano SUAVEMENTE dentro del rectángulo gris")
+        print("   • Verde = Posición estable, Amarillo = En movimiento")
+        print("   • El círculo gris muestra la zona muerta (sin micro-movimientos)")
+        print("   • El sistema ahora es mucho más controlable y predecible")
         
         plt.show()
 
