@@ -73,8 +73,8 @@ class CameraManager:
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
             
-            # Configurar FPS (si es posible)
-            self.cap.set(cv2.CAP_PROP_FPS, 30)
+            # Configurar FPS a 60 para máxima fluidez
+            self.cap.set(cv2.CAP_PROP_FPS, 60)
             
             # Obtener resolución real
             actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))

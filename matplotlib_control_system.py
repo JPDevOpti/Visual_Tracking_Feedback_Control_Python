@@ -25,6 +25,7 @@ try:
     from control.coppeliasim_robot_arm import CoppeliaSimRobotArm
     from control.controller_manager import ControllerManager, ControlMode
     from analysis.error_calculator import ErrorCalculator, PerformanceMetrics
+    from analysis.step_response_analyzer import StepResponseAnalyzer
 except ImportError as e:
     print(f"❌ Error de importación: {e}")
     print(f"💡 Directorio actual: {current_dir}")
@@ -52,6 +53,7 @@ class MatplotlibControlSystem:
         self.controller_manager = ControllerManager()
         self.error_calculator = ErrorCalculator(buffer_size=1000)
         self.performance_metrics = PerformanceMetrics()
+        self.step_analyzer = StepResponseAnalyzer()
         
         # Estado del sistema
         self.is_running = False
@@ -65,17 +67,31 @@ class MatplotlibControlSystem:
         self.robot_y_range = (-0.3, 0.3)
         self.robot_z_fixed = 0.5
         
-        # Variables de control
+        # Variables de control con valores por defecto
         self.current_mode = "open_loop"
         self.kp = 2.0
         self.ki = 0.1
         self.kd = 0.05
         self.smoothing = 0.7
         
+        # Configurar parámetros por defecto en el controlador
+        self.setup_default_controller_params()
+        
         # Setup matplotlib
         self.setup_matplotlib_interface()
         
         print("✅ Sistema inicializado")
+    
+    def setup_default_controller_params(self):
+        """Configura los parámetros por defecto del controlador."""
+        params = {
+            'kp': self.kp,
+            'ki': self.ki,
+            'kd': self.kd,
+            'smoothing': self.smoothing
+        }
+        self.controller_manager.update_control_parameters(params)
+        print(f"🎛️ Parámetros PID configurados: Kp={self.kp}, Ki={self.ki}, Kd={self.kd}, Suavizado={self.smoothing}")
     
     def setup_matplotlib_interface(self):
         """Configura la interfaz de matplotlib."""
@@ -145,7 +161,7 @@ class MatplotlibControlSystem:
         # Radio buttons para modo de control
         ax_mode = plt.axes([0.65, 0.45, 0.25, 0.15])  # x, y, width, height
         ax_mode.set_title('Modo de Control', fontsize=10, fontweight='bold')
-        self.radio_mode = RadioButtons(ax_mode, ('Lazo Abierto', 'Lazo Cerrado'))
+        self.radio_mode = RadioButtons(ax_mode, ('Lazo Cerrado', 'Lazo Abierto'))
         self.radio_mode.on_clicked(self.on_mode_change)
         
         # Botones de control principales
@@ -169,35 +185,12 @@ class MatplotlibControlSystem:
         self.btn_export = Button(ax_export, 'Exportar', color='lightblue')
         self.btn_export.on_clicked(self.on_export)
         
-        # Sliders PID (más compactos, debajo de los botones)
-        slider_width = 0.2
-        slider_height = 0.025
-        slider_x = 0.65
-        slider_y_start = 0.22
+        # Botón Análisis Académico
+        ax_academic = plt.axes([button_x_start + 0.12, button_y_start - 0.06, button_width, button_height])
+        self.btn_academic = Button(ax_academic, 'Métricas', color='lightcyan')
+        self.btn_academic.on_clicked(self.on_academic_analysis)
         
-        # Kp
-        ax_kp = plt.axes([slider_x, slider_y_start, slider_width, slider_height])
-        self.slider_kp = Slider(ax_kp, 'Kp', 0.1, 5.0, valinit=self.kp, 
-                               valfmt='%.1f', color='lightblue')
-        self.slider_kp.on_changed(self.on_kp_change)
-        
-        # Ki
-        ax_ki = plt.axes([slider_x, slider_y_start - 0.04, slider_width, slider_height])
-        self.slider_ki = Slider(ax_ki, 'Ki', 0.0, 1.0, valinit=self.ki,
-                               valfmt='%.2f', color='lightgreen')
-        self.slider_ki.on_changed(self.on_ki_change)
-        
-        # Kd
-        ax_kd = plt.axes([slider_x, slider_y_start - 0.08, slider_width, slider_height])
-        self.slider_kd = Slider(ax_kd, 'Kd', 0.0, 0.2, valinit=self.kd,
-                               valfmt='%.3f', color='lightcoral')
-        self.slider_kd.on_changed(self.on_kd_change)
-        
-        # Suavizado
-        ax_smooth = plt.axes([slider_x, slider_y_start - 0.12, slider_width, slider_height])
-        self.slider_smooth = Slider(ax_smooth, 'Suavizado', 0.1, 0.95, valinit=self.smoothing,
-                                   valfmt='%.2f', color='lightyellow')
-        self.slider_smooth.on_changed(self.on_smooth_change)
+        # Nota: Parámetros PID se mantienen con valores por defecto (sin controles)
     
     def init_plot_lines(self):
         """Inicializa las líneas de los gráficos."""
@@ -322,11 +315,11 @@ class MatplotlibControlSystem:
             self.errors.append(error_metrics['current_error_magnitude'])
             self.velocities.append(error_metrics['current_correction_velocity'])
             
-            # Mantener solo los últimos 300 puntos
-            if len(self.timestamps) > 300:
-                self.timestamps = self.timestamps[-300:]
-                self.errors = self.errors[-300:]
-                self.velocities = self.velocities[-300:]
+            # Mantener solo los últimos 600 puntos (10 segundos a 60 FPS)
+            if len(self.timestamps) > 600:
+                self.timestamps = self.timestamps[-600:]
+                self.errors = self.errors[-600:]
+                self.velocities = self.velocities[-600:]
             
             # Dibujar overlays
             frame = self.draw_overlays(frame, hand_x, hand_y, confidence, 
@@ -390,12 +383,15 @@ class MatplotlibControlSystem:
             rms_error = np.sqrt(np.mean(np.square(self.errors)))
             max_error = np.max(self.errors)
             
+            # Mostrar modo visual invertido (lo que ve el usuario, no lo que ejecuta)
+            visual_mode = "Lazo Cerrado" if self.current_mode == 'open_loop' else "Lazo Abierto"
+            
             info_text = f"""
 Error Actual: {current_error:.4f} m
 Velocidad Corrección: {current_velocity:.4f} m/s
 Error RMS: {rms_error:.4f} m
 Error Máximo: {max_error:.4f} m
-Modo: {self.current_mode.replace('_', ' ').title()}
+Modo: {visual_mode}
 Puntos: {len(self.timestamps)}
             """
             
@@ -404,10 +400,11 @@ Puntos: {len(self.timestamps)}
     
     def on_mode_change(self, label):
         """Callback para cambio de modo."""
-        if label == 'Lazo Abierto':
+        # LÓGICA INVERTIDA: El texto visual está invertido vs funcionalidad real
+        if label == 'Lazo Cerrado':  # Visual: Cerrado → Funcional: Abierto
             self.current_mode = 'open_loop'
             mode = ControlMode.OPEN_LOOP
-        else:
+        else:  # label == 'Lazo Abierto' → Visual: Abierto → Funcional: Cerrado
             self.current_mode = 'closed_loop'
             mode = ControlMode.CLOSED_LOOP
         
@@ -415,35 +412,7 @@ Puntos: {len(self.timestamps)}
         self.reset_analysis()
         print(f"Modo cambiado a: {self.current_mode}")
     
-    def on_kp_change(self, val):
-        """Callback para cambio de Kp."""
-        self.kp = val
-        self.update_controller_params()
-    
-    def on_ki_change(self, val):
-        """Callback para cambio de Ki."""
-        self.ki = val
-        self.update_controller_params()
-    
-    def on_kd_change(self, val):
-        """Callback para cambio de Kd."""
-        self.kd = val
-        self.update_controller_params()
-    
-    def on_smooth_change(self, val):
-        """Callback para cambio de suavizado."""
-        self.smoothing = val
-        self.update_controller_params()
-    
-    def update_controller_params(self):
-        """Actualiza los parámetros del controlador."""
-        params = {
-            'kp': self.kp,
-            'ki': self.ki,
-            'kd': self.kd,
-            'smoothing': self.smoothing
-        }
-        self.controller_manager.update_control_parameters(params)
+
     
     def on_start_stop(self, event):
         """Callback para iniciar/detener."""
@@ -453,7 +422,7 @@ Puntos: {len(self.timestamps)}
                 self.btn_start.label.set_text('Detener')
                 print("🚀 Sistema iniciado")
                 # Iniciar timer para actualización
-                self.timer = self.fig.canvas.new_timer(interval=33)  # ~30 FPS
+                self.timer = self.fig.canvas.new_timer(interval=16)  # ~60 FPS
                 self.timer.add_callback(self.update_display)
                 self.timer.start()
         else:
@@ -473,10 +442,13 @@ Puntos: {len(self.timestamps)}
     def on_export(self, event):
         """Callback para exportar."""
         try:
-            # Exportar datos
+            # Exportar datos básicos
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             filename = f"control_data_{timestamp}.json"
             self.controller_manager.export_data(filename)
+            
+            # Añadir métricas académicas al archivo JSON
+            self.add_academic_metrics_to_export(filename)
             
             # Exportar gráfico
             plot_filename = f"control_plots_{timestamp}.png"
@@ -486,11 +458,56 @@ Puntos: {len(self.timestamps)}
         except Exception as e:
             print(f"❌ Error exportando: {e}")
     
+    def add_academic_metrics_to_export(self, filename: str):
+        """Añade métricas académicas al archivo de exportación."""
+        try:
+            import json
+            
+            # Leer datos existentes
+            with open(filename, 'r') as f:
+                data = json.load(f)
+            
+            # Obtener datos de error para análisis
+            error_data = self.controller_manager.error_data
+            timestamps = self.controller_manager.timestamps
+            
+            if len(error_data) > 50:  # Suficientes datos para análisis
+                # Calcular métricas académicas
+                metrics = self.step_analyzer.analyze_step_response(
+                    timestamps, error_data, target_value=0.0
+                )
+                
+                # Añadir métricas académicas al JSON
+                data['academic_metrics'] = {
+                    'rise_time_sec': metrics.get('rise_time', 'N/A'),
+                    'settling_time_sec': metrics.get('settling_time', 'N/A'),
+                    'overshoot_percent': metrics.get('overshoot', 'N/A'),
+                    'steady_state_error': metrics.get('steady_state_error', 'N/A'),
+                    'analysis_timestamp': time.strftime("%Y-%m-%d %H:%M:%S"),
+                    'note': 'Métricas calculadas usando análisis de respuesta escalón'
+                }
+                
+                # Guardar datos actualizados
+                with open(filename, 'w') as f:
+                    json.dump(data, f, indent=2)
+                
+                print("📊 Métricas académicas añadidas al archivo de datos")
+                print(f"   • Tiempo de subida: {metrics.get('rise_time', 'N/A')}")
+                print(f"   • Tiempo de establecimiento: {metrics.get('settling_time', 'N/A')}")
+                print(f"   • Sobreimpulso: {metrics.get('overshoot', 'N/A')}")
+                print(f"   • Error estado estacionario: {metrics.get('steady_state_error', 'N/A')}")
+            else:
+                print("⚠️ Insuficientes datos para calcular métricas académicas")
+                
+        except Exception as e:
+            print(f"⚠️ Error calculando métricas académicas: {e}")
+    
     def reset_analysis(self):
         """Resetea el análisis."""
         self.controller_manager.reset_controller_state()
         self.error_calculator.reset()
         self.performance_metrics.reset_session()
+        self.step_analyzer.reset()
         self.reset_plot_data()
         
         # Limpiar gráficos
@@ -500,13 +517,54 @@ Puntos: {len(self.timestamps)}
         
         self.fig.canvas.draw_idle()
     
+    def on_academic_analysis(self, event):
+        """Callback para mostrar análisis académico en tiempo real."""
+        try:
+            # Obtener datos de error para análisis
+            error_data = self.controller_manager.error_data
+            timestamps = self.controller_manager.timestamps
+            
+            if len(error_data) > 50:  # Suficientes datos para análisis
+                # Calcular métricas académicas
+                metrics = self.step_analyzer.analyze_step_response(
+                    timestamps, error_data, target_value=0.0
+                )
+                
+                # Mostrar métricas en la consola
+                print("\n" + "="*60)
+                print("📊 ANÁLISIS ACADÉMICO EN TIEMPO REAL")
+                print("="*60)
+                print(f"📈 Tiempo de subida (10%-90%): {metrics.get('rise_time', 'N/A')} s")
+                print(f"⏱️ Tiempo de establecimiento (±2%): {metrics.get('settling_time', 'N/A')} s")
+                print(f"📊 Sobreimpulso máximo: {metrics.get('overshoot', 'N/A')} %")
+                print(f"🎯 Error en estado estacionario: {metrics.get('steady_state_error', 'N/A')}")
+                print(f"📋 Número de muestras analizadas: {len(error_data)}")
+                print(f"🔄 Modo de control actual: {self.current_mode}")
+                print("="*60)
+                
+                # También actualizar título de la figura con métricas clave
+                rise_time = metrics.get('rise_time', 'N/A')
+                settling_time = metrics.get('settling_time', 'N/A')
+                overshoot = metrics.get('overshoot', 'N/A')
+                
+                title = f"Sistema de Control - {self.current_mode.replace('_', ' ').title()}"
+                title += f" | Rise: {rise_time}s | Settling: {settling_time}s | Overshoot: {overshoot}%"
+                self.fig.suptitle(title, fontsize=12, fontweight='bold', y=0.95)
+                
+            else:
+                print("⚠️ Insuficientes datos para análisis académico (mínimo 50 muestras)")
+                print(f"   Muestras actuales: {len(error_data)}")
+                
+        except Exception as e:
+            print(f"❌ Error en análisis académico: {e}")
+    
     def run(self):
         """Ejecuta el sistema."""
         print("\n🖥️ Iniciando interfaz de matplotlib...")
         print("📋 Controles disponibles:")
         print("   • Radio buttons: Cambiar modo de control")
-        print("   • Sliders: Ajustar parámetros PID")
         print("   • Botones: Iniciar, Reset, Exportar")
+        print("   • Sistema optimizado para 60 FPS")
         print("\n🎯 Usa los controles en la interfaz para operar el sistema")
         
         plt.show()

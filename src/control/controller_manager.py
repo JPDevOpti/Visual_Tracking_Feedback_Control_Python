@@ -6,7 +6,7 @@ Maneja la transición entre modos y coordina los controladores
 import numpy as np
 import time
 from enum import Enum
-from typing import Tuple, Optional, Dict, Any
+from typing import Tuple, Optional, Dict, Any, List
 
 class ControlMode(Enum):
     """Modos de control disponibles."""
@@ -368,3 +368,33 @@ class ControllerManager:
         except Exception as e:
             print(f"❌ Error exportando datos: {e}")
             return False
+        
+    @property
+    def error_data(self) -> List[float]:
+        """
+        Obtiene datos de error como magnitudes para análisis académico.
+        
+        Returns:
+            Lista de magnitudes de error
+        """
+        return [np.linalg.norm(error) for error in self.history['errors']]
+    
+    @property
+    def timestamps(self) -> List[float]:
+        """
+        Obtiene timestamps para análisis académico.
+        
+        Returns:
+            Lista de timestamps
+        """
+        return self.history['timestamps'].copy()
+    
+    def get_error_data_for_analysis(self) -> Tuple[List[float], List[float]]:
+        """
+        Obtiene datos de error y timestamps para análisis académico.
+        
+        Returns:
+            Tupla con (error_magnitudes, timestamps)
+        """
+        error_magnitudes = [np.linalg.norm(error) for error in self.history['errors']]
+        return error_magnitudes, self.history['timestamps'].copy()

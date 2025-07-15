@@ -51,10 +51,13 @@ class ControlPanel:
         self.on_reset_system = None
         self.on_start_stop = None
         self.on_export_data = None
+        self.on_start_step_analysis = None
+        self.on_stop_step_analysis = None
         
         # Variables de estado
         self.current_metrics = {}
         self.system_status = "Detenido"
+        self.current_photo_reference = None  # Para mantener referencia de imágenes
         
         # Configurar interfaz
         self.setup_ui()
@@ -63,161 +66,161 @@ class ControlPanel:
     
     def setup_ui(self):
         """Configura la interfaz de usuario."""
-        # Frame principal
+        # Frame principal con grid para mejor distribución
         main_frame = ttk.Frame(self.master)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # Panel superior: Controles
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.columnconfigure(1, weight=2)
+        main_frame.rowconfigure(0, weight=0)
+        main_frame.rowconfigure(1, weight=1)
+        main_frame.rowconfigure(2, weight=0)
+
+        # Panel superior: Controles (más compacto)
         self.setup_control_panel(main_frame)
-        
-        # Panel central: Video y gráficos
+        self.control_panel_frame.grid(row=0, column=0, columnspan=2, sticky="ew")
+
+        # Panel central: Video y gráficos (más grande y central)
         self.setup_display_panel(main_frame)
-        
+        self.display_panel_frame.grid(row=1, column=0, columnspan=2, sticky="nsew")
+
         # Panel inferior: Información y métricas
         self.setup_info_panel(main_frame)
+        self.info_panel_frame.grid(row=2, column=0, columnspan=2, sticky="ew")
     
     def setup_control_panel(self, parent):
         """Configura el panel de controles superiores."""
-        control_frame = ttk.LabelFrame(parent, text="Panel de Control", padding="10")
-        control_frame.pack(fill=tk.X, pady=(0, 10))
-        
+        self.control_panel_frame = ttk.LabelFrame(parent, text="Panel de Control", padding="10")
+
+        # Usar grid para mejor distribución
+        self.control_panel_frame.columnconfigure(0, weight=1)
+        self.control_panel_frame.columnconfigure(1, weight=2)
+        self.control_panel_frame.columnconfigure(2, weight=1)
+
         # Frame izquierdo: Modo de control
-        mode_frame = ttk.Frame(control_frame)
-        mode_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 20))
-        
+        mode_frame = ttk.Frame(self.control_panel_frame)
+        mode_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
         ttk.Label(mode_frame, text="Modo de Control:", font=('Arial', 10, 'bold')).pack(anchor=tk.W)
-        
-        # Radio buttons para modo
-        ttk.Radiobutton(mode_frame, text="🔵 Lazo Abierto", 
-                       variable=self.control_mode, value="open_loop",
-                       command=self.on_mode_changed).pack(anchor=tk.W, pady=2)
-        
-        ttk.Radiobutton(mode_frame, text="🟢 Lazo Cerrado", 
-                       variable=self.control_mode, value="closed_loop",
-                       command=self.on_mode_changed).pack(anchor=tk.W, pady=2)
-        
-        # Frame central: Parámetros
-        param_frame = ttk.Frame(control_frame)
-        param_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 20))
-        
-        ttk.Label(param_frame, text="Parámetros:", font=('Arial', 10, 'bold')).pack(anchor=tk.W)
-        
-        # Parámetros en grid
+        ttk.Radiobutton(mode_frame, text="🔵 Lazo Abierto", variable=self.control_mode, value="open_loop", command=self.on_mode_changed).pack(anchor=tk.W, pady=2)
+        ttk.Radiobutton(mode_frame, text="🟢 Lazo Cerrado", variable=self.control_mode, value="closed_loop", command=self.on_mode_changed).pack(anchor=tk.W, pady=2)
+
+        # Frame central: Parámetros PID más compacto
+        param_frame = ttk.Frame(self.control_panel_frame)
+        param_frame.grid(row=0, column=1, sticky="nsew", padx=(0, 10))
+        ttk.Label(param_frame, text="PID & Suavizado", font=('Arial', 10, 'bold')).pack(anchor=tk.W)
         param_grid = ttk.Frame(param_frame)
         param_grid.pack(fill=tk.X, pady=5)
-        
-        # PID Parameters
-        ttk.Label(param_grid, text="Kp:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
-        kp_scale = ttk.Scale(param_grid, from_=0.1, to=5.0, variable=self.kp_var, 
-                            orient=tk.HORIZONTAL, length=100, command=self.on_param_changed)
-        kp_scale.grid(row=0, column=1, padx=5)
+
+        # Kp
+        ttk.Label(param_grid, text="Kp:").grid(row=0, column=0, sticky=tk.W, padx=(0, 2))
+        kp_scale = ttk.Scale(param_grid, from_=0.1, to=5.0, variable=self.kp_var, orient=tk.HORIZONTAL, length=80, command=self.on_param_changed)
+        kp_scale.grid(row=0, column=1, padx=2)
         self.kp_label = ttk.Label(param_grid, text="2.0")
-        self.kp_label.grid(row=0, column=2, padx=5)
-        
-        ttk.Label(param_grid, text="Ki:").grid(row=0, column=3, sticky=tk.W, padx=(20, 5))
-        ki_scale = ttk.Scale(param_grid, from_=0.0, to=1.0, variable=self.ki_var, 
-                            orient=tk.HORIZONTAL, length=100, command=self.on_param_changed)
-        ki_scale.grid(row=0, column=4, padx=5)
+        self.kp_label.grid(row=0, column=2, padx=2)
+
+        # Ki
+        ttk.Label(param_grid, text="Ki:").grid(row=0, column=3, sticky=tk.W, padx=(10, 2))
+        ki_scale = ttk.Scale(param_grid, from_=0.0, to=1.0, variable=self.ki_var, orient=tk.HORIZONTAL, length=80, command=self.on_param_changed)
+        ki_scale.grid(row=0, column=4, padx=2)
         self.ki_label = ttk.Label(param_grid, text="0.1")
-        self.ki_label.grid(row=0, column=5, padx=5)
-        
-        ttk.Label(param_grid, text="Kd:").grid(row=1, column=0, sticky=tk.W, padx=(0, 5))
-        kd_scale = ttk.Scale(param_grid, from_=0.0, to=0.2, variable=self.kd_var, 
-                            orient=tk.HORIZONTAL, length=100, command=self.on_param_changed)
-        kd_scale.grid(row=1, column=1, padx=5)
+        self.ki_label.grid(row=0, column=5, padx=2)
+
+        # Kd
+        ttk.Label(param_grid, text="Kd:").grid(row=1, column=0, sticky=tk.W, padx=(0, 2))
+        kd_scale = ttk.Scale(param_grid, from_=0.0, to=0.2, variable=self.kd_var, orient=tk.HORIZONTAL, length=80, command=self.on_param_changed)
+        kd_scale.grid(row=1, column=1, padx=2)
         self.kd_label = ttk.Label(param_grid, text="0.05")
-        self.kd_label.grid(row=1, column=2, padx=5)
-        
-        ttk.Label(param_grid, text="Suavizado:").grid(row=1, column=3, sticky=tk.W, padx=(20, 5))
-        smooth_scale = ttk.Scale(param_grid, from_=0.1, to=0.95, variable=self.smoothing_var, 
-                               orient=tk.HORIZONTAL, length=100, command=self.on_param_changed)
-        smooth_scale.grid(row=1, column=4, padx=5)
+        self.kd_label.grid(row=1, column=2, padx=2)
+
+        # Suavizado
+        ttk.Label(param_grid, text="Suavizado:").grid(row=1, column=3, sticky=tk.W, padx=(10, 2))
+        smooth_scale = ttk.Scale(param_grid, from_=0.1, to=0.95, variable=self.smoothing_var, orient=tk.HORIZONTAL, length=80, command=self.on_param_changed)
+        smooth_scale.grid(row=1, column=4, padx=2)
         self.smooth_label = ttk.Label(param_grid, text="0.7")
-        self.smooth_label.grid(row=1, column=5, padx=5)
-        
+        self.smooth_label.grid(row=1, column=5, padx=2)
+
         # Frame derecho: Botones de acción
-        button_frame = ttk.Frame(control_frame)
-        button_frame.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        self.start_button = ttk.Button(button_frame, text="▶️ Iniciar", 
-                                      command=self.on_start_stop_clicked, width=12)
+        button_frame = ttk.Frame(self.control_panel_frame)
+        button_frame.grid(row=0, column=2, sticky="nsew")
+        self.start_button = ttk.Button(button_frame, text="▶️ Iniciar", command=self.on_start_stop_clicked, width=12)
         self.start_button.pack(pady=2)
-        
-        ttk.Button(button_frame, text="🔄 Reset", 
-                  command=self.on_reset_clicked, width=12).pack(pady=2)
-        
-        ttk.Button(button_frame, text="💾 Exportar", 
-                  command=self.on_export_clicked, width=12).pack(pady=2)
-        
-        ttk.Checkbutton(button_frame, text="Debug", 
-                       variable=self.show_debug).pack(pady=2)
+        ttk.Button(button_frame, text="🔄 Reset", command=self.on_reset_clicked, width=12).pack(pady=2)
+        ttk.Button(button_frame, text="💾 Exportar", command=self.on_export_clicked, width=12).pack(pady=2)
+        ttk.Checkbutton(button_frame, text="Debug", variable=self.show_debug).pack(pady=2)
+        ttk.Separator(button_frame, orient='horizontal').pack(fill='x', pady=5)
+        ttk.Label(button_frame, text="Análisis Académico:", font=('Arial', 8, 'bold')).pack()
+        ttk.Button(button_frame, text="🎯 Iniciar Escalón", command=self.on_start_step_clicked, width=12).pack(pady=1)
+        ttk.Button(button_frame, text="⏹️ Detener Escalón", command=self.on_stop_step_clicked, width=12).pack(pady=1)
     
     def setup_display_panel(self, parent):
         """Configura el panel de visualización central."""
-        display_frame = ttk.Frame(parent)
-        display_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-        
-        # Frame izquierdo: Video de cámara
-        video_frame = ttk.LabelFrame(display_frame, text="Vista de Cámara", padding="5")
-        video_frame.pack(side=tk.LEFT, fill=tk.BOTH, padx=(0, 10))
-        
-        # Canvas para video
-        self.video_canvas = tk.Canvas(video_frame, width=640, height=480, bg='black')
-        self.video_canvas.pack()
-        
-        # Frame derecho: Gráficos
-        plot_frame = ttk.LabelFrame(display_frame, text="Análisis en Tiempo Real", padding="5")
-        plot_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
-        
-        # Placeholder para matplotlib
+        self.display_panel_frame = ttk.Frame(parent)
+        self.display_panel_frame.columnconfigure(0, weight=1)
+        self.display_panel_frame.columnconfigure(1, weight=2)
+
+        # Frame izquierdo: Video de cámara (más grande)
+        video_frame = ttk.LabelFrame(self.display_panel_frame, text="Vista de Cámara", padding="5")
+        video_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        self.video_canvas = tk.Canvas(video_frame, width=720, height=540, bg='black')
+        self.video_canvas.pack(fill=tk.BOTH, expand=True)
+
+        # Frame derecho: Gráficos (más grande)
+        plot_frame = ttk.LabelFrame(self.display_panel_frame, text="Análisis en Tiempo Real", padding="5")
+        plot_frame.grid(row=0, column=1, sticky="nsew")
         self.plot_frame = plot_frame
         self.matplotlib_canvas = None
     
     def setup_info_panel(self, parent):
         """Configura el panel de información inferior."""
-        info_frame = ttk.LabelFrame(parent, text="Información del Sistema", padding="10")
-        info_frame.pack(fill=tk.X)
-        
+        self.info_panel_frame = ttk.LabelFrame(parent, text="Información del Sistema", padding="10")
+        self.info_panel_frame.columnconfigure(0, weight=1)
+        self.info_panel_frame.columnconfigure(1, weight=2)
+        self.info_panel_frame.columnconfigure(2, weight=1)
+
         # Frame izquierdo: Estado del sistema
-        status_frame = ttk.Frame(info_frame)
-        status_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 20))
-        
+        status_frame = ttk.Frame(self.info_panel_frame)
+        status_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
         ttk.Label(status_frame, text="Estado:", font=('Arial', 9, 'bold')).pack(anchor=tk.W)
         self.status_label = ttk.Label(status_frame, text="⏹️ Detenido", foreground='red')
         self.status_label.pack(anchor=tk.W)
-        
         ttk.Label(status_frame, text="Modo:", font=('Arial', 9, 'bold')).pack(anchor=tk.W, pady=(10, 0))
         self.mode_label = ttk.Label(status_frame, text="🔵 Lazo Abierto")
         self.mode_label.pack(anchor=tk.W)
-        
+
         # Frame central: Métricas en tiempo real
-        metrics_frame = ttk.Frame(info_frame)
-        metrics_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
+        metrics_frame = ttk.Frame(self.info_panel_frame)
+        metrics_frame.grid(row=0, column=1, sticky="nsew")
         ttk.Label(metrics_frame, text="Métricas en Tiempo Real:", font=('Arial', 9, 'bold')).pack(anchor=tk.W)
-        
-        # Grid para métricas
         metrics_grid = ttk.Frame(metrics_frame)
         metrics_grid.pack(fill=tk.X, pady=5)
-        
-        # Labels para métricas
         self.error_label = ttk.Label(metrics_grid, text="Error: --- m")
         self.error_label.grid(row=0, column=0, sticky=tk.W, padx=(0, 20))
-        
         self.velocity_label = ttk.Label(metrics_grid, text="Velocidad: --- m/s")
         self.velocity_label.grid(row=0, column=1, sticky=tk.W, padx=(0, 20))
-        
         self.rms_label = ttk.Label(metrics_grid, text="RMS: --- m")
         self.rms_label.grid(row=0, column=2, sticky=tk.W)
-        
         self.position_label = ttk.Label(metrics_grid, text="Posición: (---, ---, ---)")
         self.position_label.grid(row=1, column=0, sticky=tk.W, padx=(0, 20))
-        
         self.settling_label = ttk.Label(metrics_grid, text="T. Estab.: --- s")
         self.settling_label.grid(row=1, column=1, sticky=tk.W, padx=(0, 20))
-        
         self.overshoot_label = ttk.Label(metrics_grid, text="Overshoot: ---%")
         self.overshoot_label.grid(row=1, column=2, sticky=tk.W)
+
+        # Frame derecho: Métricas académicas
+        academic_frame = ttk.Frame(self.info_panel_frame)
+        academic_frame.grid(row=0, column=2, sticky="nsew", padx=(10, 0))
+        ttk.Label(academic_frame, text="Métricas Académicas:", font=('Arial', 9, 'bold')).pack(anchor=tk.W)
+        academic_grid = ttk.Frame(academic_frame)
+        academic_grid.pack(fill=tk.X, pady=5)
+        self.rise_time_label = ttk.Label(academic_grid, text="Tiempo Subida: --- s", foreground='blue')
+        self.rise_time_label.grid(row=0, column=0, sticky=tk.W, pady=1)
+        self.academic_settling_label = ttk.Label(academic_grid, text="T. Establecimiento: --- s", foreground='blue')
+        self.academic_settling_label.grid(row=1, column=0, sticky=tk.W, pady=1)
+        self.academic_overshoot_label = ttk.Label(academic_grid, text="Sobreimpulso: --- %", foreground='blue')
+        self.academic_overshoot_label.grid(row=2, column=0, sticky=tk.W, pady=1)
+        self.ss_error_label = ttk.Label(academic_grid, text="Error Est. Est.: --- m", foreground='blue')
+        self.ss_error_label.grid(row=3, column=0, sticky=tk.W, pady=1)
+        self.analysis_status_label = ttk.Label(academic_grid, text="Estado: Inactivo", foreground='gray')
+        self.analysis_status_label.grid(row=4, column=0, sticky=tk.W, pady=5)
     
     def set_matplotlib_figure(self, figure):
         """
@@ -257,7 +260,9 @@ class ControlPanel:
         # Actualizar canvas
         self.video_canvas.delete("all")
         self.video_canvas.create_image(320, 240, image=photo)
-        self.video_canvas.image = photo  # Mantener referencia
+        
+        # Mantener referencia para evitar que sea recolectada por garbage collector
+        self.current_photo_reference = photo
     
     def update_metrics_display(self, metrics: Dict[str, Any]):
         """
@@ -292,6 +297,9 @@ class ControlPanel:
         
         overshoot = metrics.get('overshoot_percentage', 0)
         self.overshoot_label.config(text=f"Overshoot: {overshoot:.1f}%")
+        
+        # Actualizar métricas académicas si están disponibles
+        self._update_academic_metrics(metrics)
     
     def update_system_status(self, status: str, is_running: bool):
         """
@@ -362,6 +370,16 @@ class ControlPanel:
         if filename and self.on_export_data:
             self.on_export_data(filename)
     
+    def on_start_step_clicked(self):
+        """Callback para iniciar análisis de escalón."""
+        if self.on_start_step_analysis:
+            self.on_start_step_analysis()
+    
+    def on_stop_step_clicked(self):
+        """Callback para detener análisis de escalón."""
+        if self.on_stop_step_analysis:
+            self.on_stop_step_analysis()
+    
     def show_error_message(self, title: str, message: str):
         """Muestra mensaje de error."""
         messagebox.showerror(title, message)
@@ -382,7 +400,58 @@ class ControlPanel:
         self.on_reset_system = callbacks.get('on_reset_system')
         self.on_start_stop = callbacks.get('on_start_stop')
         self.on_export_data = callbacks.get('on_export_data')
-
+        self.on_start_step_analysis = callbacks.get('on_start_step_analysis')
+        self.on_stop_step_analysis = callbacks.get('on_stop_step_analysis')
+    
+    def _update_academic_metrics(self, metrics: Dict[str, Any]):
+        """
+        Actualiza las métricas académicas en la interfaz.
+        
+        Args:
+            metrics: Diccionario con métricas del sistema
+        """
+        # Verificar si hay análisis de escalón activo
+        step_analysis_active = any(key.startswith('step_') for key in metrics.keys())
+        
+        if step_analysis_active:
+            self.analysis_status_label.config(text="Estado: Analizando...", foreground='orange')
+            
+            # Actualizar métricas específicas de escalón
+            rise_time = metrics.get('step_rise_time')
+            if rise_time is not None:
+                self.rise_time_label.config(text=f"Tiempo Subida: {rise_time:.3f} s")
+            else:
+                self.rise_time_label.config(text="Tiempo Subida: Calculando...")
+            
+            settling_time = metrics.get('step_settling_time')
+            if settling_time is not None:
+                self.academic_settling_label.config(text=f"T. Establecimiento: {settling_time:.3f} s")
+            else:
+                self.academic_settling_label.config(text="T. Establecimiento: Calculando...")
+            
+            overshoot = metrics.get('step_overshoot_percentage')
+            if overshoot is not None:
+                self.academic_overshoot_label.config(text=f"Sobreimpulso: {overshoot:.2f} %")
+            else:
+                self.academic_overshoot_label.config(text="Sobreimpulso: Calculando...")
+            
+            ss_error = metrics.get('step_steady_state_error')
+            if ss_error is not None:
+                self.ss_error_label.config(text=f"Error Est. Est.: {ss_error:.4f} m")
+            else:
+                self.ss_error_label.config(text="Error Est. Est.: Calculando...")
+                
+            # Verificar si el análisis es válido
+            if metrics.get('step_analysis_valid', False):
+                self.analysis_status_label.config(text="Estado: Completado", foreground='green')
+        
+        else:
+            # No hay análisis activo
+            self.analysis_status_label.config(text="Estado: Inactivo", foreground='gray')
+            self.rise_time_label.config(text="Tiempo Subida: --- s")
+            self.academic_settling_label.config(text="T. Establecimiento: --- s")
+            self.academic_overshoot_label.config(text="Sobreimpulso: --- %")
+            self.ss_error_label.config(text="Error Est. Est.: --- m")
 
 class GUIManager:
     """

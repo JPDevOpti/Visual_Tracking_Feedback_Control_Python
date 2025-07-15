@@ -23,6 +23,7 @@ try:
     from control.coppeliasim_robot_arm import CoppeliaSimRobotArm
     from control.controller_manager import ControllerManager, ControlMode
     from analysis.error_calculator import ErrorCalculator, PerformanceMetrics
+    from analysis.step_response_analyzer import StepResponseAnalyzer
     from visualization.real_time_plotter import RealTimePlotter
     from visualization.gui_manager import GUIManager
 except ImportError as e:
@@ -52,6 +53,7 @@ class AdvancedHandRobotControl:
         self.controller_manager = ControllerManager()
         self.error_calculator = ErrorCalculator(buffer_size=1000)
         self.performance_metrics = PerformanceMetrics()
+        self.step_analyzer = StepResponseAnalyzer(buffer_size=500)
         
         # Componentes de visualización
         self.plotter = RealTimePlotter(max_points=300, update_interval=50)
@@ -87,7 +89,9 @@ class AdvancedHandRobotControl:
             on_parameter_change=self.on_parameter_change,
             on_reset_system=self.on_reset_system,
             on_start_stop=self.on_start_stop,
-            on_export_data=self.on_export_data
+            on_export_data=self.on_export_data,
+            on_start_step_analysis=self.on_start_step_analysis,
+            on_stop_step_analysis=self.on_stop_step_analysis
         )
     
     def on_mode_change(self, mode: str):
@@ -105,6 +109,7 @@ class AdvancedHandRobotControl:
         # Resetear análisis
         self.error_calculator.reset()
         self.plotter.reset_plots()
+        self.step_analyzer.reset()
         
         print(f"✅ Modo cambiado a: {mode}")
     
@@ -129,6 +134,7 @@ class AdvancedHandRobotControl:
         # Resetear análisis
         self.error_calculator.reset()
         self.performance_metrics.reset_session()
+        self.step_analyzer.reset()
         
         # Resetear gráficos
         self.plotter.reset_plots()
@@ -163,12 +169,21 @@ class AdvancedHandRobotControl:
             # Exportar datos del controlador
             self.controller_manager.export_data(filename)
             
+            # Exportar análisis de escalón si está disponible
+            if self.step_analyzer.has_valid_analysis():
+                step_filename = filename.replace('.json', '_step_analysis.json')
+                self.step_analyzer.export_step_analysis(step_filename)
+            
             # Exportar gráficos
             plot_filename = filename.replace('.json', '_plots.png')
             self.plotter.save_plots(plot_filename)
             
-            self.control_panel.show_info_message("Exportar Datos", 
-                                               f"Datos exportados exitosamente:\\n{filename}\\n{plot_filename}")
+            # Mensaje de confirmación
+            message = f"Datos exportados exitosamente:\\n{filename}\\n{plot_filename}"
+            if self.step_analyzer.has_valid_analysis():
+                message += f"\\n{step_filename.split('/')[-1]}"
+            
+            self.control_panel.show_info_message("Exportar Datos", message)
         
         except Exception as e:
             self.control_panel.show_error_message("Error de Exportación", f"Error exportando datos: {e}")
@@ -351,6 +366,14 @@ class AdvancedHandRobotControl:
                 desired_position, actual_position, current_time
             )
             
+            # Actualizar análisis de escalón si está activo
+            if self.step_analyzer.is_analysis_active():
+                step_metrics = self.step_analyzer.update_analysis(
+                    desired_position, actual_position, current_time
+                )
+                # Combinar métricas de escalón con las existentes
+                error_metrics.update({f"step_{k}": v for k, v in step_metrics.items() if v is not None})
+            
             # Actualizar métricas de rendimiento
             error_magnitude = error_metrics['current_error_magnitude']
             mode = self.controller_manager.current_mode.value
@@ -485,7 +508,56 @@ class AdvancedHandRobotControl:
         finally:
             self.cleanup()
 
+    def on_start_step_analysis(self):
+        """Callback para iniciar análisis de escalón."""
+        if not self.is_running:
+            self.control_panel.show_error_message("Sistema No Activo", 
+                                                "Inicia el sistema antes de hacer análisis.")
+            return
+        
+        # Obtener posición actual del robot
+        try:
+            current_position = np.array(self.robot.get_current_position())
+            self.step_analyzer.start_step_analysis(current_position)
+            
+            self.control_panel.show_info_message("Análisis de Escalón", 
+                                               "Análisis iniciado.\nMueve tu mano para crear un escalón.")
+            print("🎯 Análisis de escalón iniciado")
+            
+        except Exception as e:
+            self.control_panel.show_error_message("Error de Análisis", 
+                                                f"No se pudo iniciar análisis: {e}")
+    
+    def on_stop_step_analysis(self):
+        """Callback para detener análisis de escalón."""
+        if self.step_analyzer.is_analysis_active():
+            self.step_analyzer.stop_analysis()
+            
+            # Mostrar resultados
+            metrics = self.step_analyzer.get_metrics()
+            if metrics.get('analysis_valid', False):
+                results = "📊 Resultados del Análisis:\n\n"
+                
+                if metrics['rise_time'] is not None:
+                    results += f"⏱️ Tiempo de Subida: {metrics['rise_time']:.3f} s\n"
+                
+                if metrics['settling_time'] is not None:
+                    results += f"📈 Tiempo de Establecimiento: {metrics['settling_time']:.3f} s\n"
+                
+                if metrics['overshoot_percentage'] is not None:
+                    results += f"🎯 Sobreimpulso: {metrics['overshoot_percentage']:.2f} %\n"
+                
+                if metrics['steady_state_error'] is not None:
+                    results += f"📉 Error Estado Estacionario: {metrics['steady_state_error']:.4f} m"
+                
+                self.control_panel.show_info_message("Análisis Completado", results)
+            else:
+                self.control_panel.show_info_message("Análisis Incompleto", 
+                                                   "El análisis no generó resultados válidos.")
+        else:
+            self.control_panel.show_info_message("Sin Análisis", "No hay análisis activo.")
 
+    # ...existing code...
 def main():
     """Función principal."""
     print("=" * 70)
